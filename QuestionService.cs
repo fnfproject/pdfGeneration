@@ -159,224 +159,92 @@ namespace ProjectAPI.Services
         }
 
         public async Task<byte[]> GeneratePdf(List<int> questionIds)
-        {
-            // Retrieve questions from database
-           
-            try
-            {
-                var questions = await _context.Questions
-                                         .Where(q => questionIds.Contains(q.QuestionId))
-                                         .ToListAsync();
+ {
+     // Retrieve questions from database
+    
+     try
+     {
+         var questions = await _context.Questions
+                                  .Where(q => questionIds.Contains(q.QuestionId))
+                                  .ToListAsync();
 
-                if (questions == null || questions.Count == 0)
-                {
-                    throw new ArgumentException("No questions found for the provided IDs.");
-                }
+         if (questions == null || questions.Count == 0)
+         {
+             throw new ArgumentException("No questions found for the provided IDs.");
+         }
 
-                using (var ms = new MemoryStream())
-                {
-                    PdfWriter writer = new PdfWriter(ms);
-                    PdfDocument pdf = new PdfDocument(writer);
-                    Document document = new Document(pdf);
+         using (var ms = new MemoryStream())
+         {
+             PdfWriter writer = new PdfWriter(ms);
+             PdfDocument pdf = new PdfDocument(writer);
+             Document document = new Document(pdf);
 
-                    // Add questions to the PDF
-                    foreach (var question in questions)
-                    {
-                        //document.Add(new Paragraph($"Subject: {question.Subject ?? "N/A"}"));
-                        //document.Add(new Paragraph($"Topic: {question.Topic ?? "N/A"}"));
-                        //document.Add(new Paragraph($"Difficulty Level: {question.DifficultyLevel ?? "N/A"}"));
-                        document.Add(new Paragraph($"Question: {question.QuestionText ?? "N/A"}"));
-                        document.Add(new Paragraph($"A: {question.OptionA ?? "N/A"}"));
-                        document.Add(new Paragraph($"B: {question.OptionB ?? "N/A"}"));
-                        document.Add(new Paragraph($"C: {question.OptionC ?? "N/A"}"));
-                        document.Add(new Paragraph($"D: {question.OptionD ?? "N/A"}"));
-                        document.Add(new Paragraph(" ")); // Empty line
-                    }
+             // Add questions to the PDF
+             foreach (var question in questions)
+             {
+                 AddContentToPdf(document, "Question", question.QuestionText);
+                 AddContentToPdf(document, "A", question.OptionA);
+                 AddContentToPdf(document, "B", question.OptionB);
+                 AddContentToPdf(document, "C", question.OptionC);
+                 AddContentToPdf(document, "D", question.OptionD);
+                 document.Add(new Paragraph(" ")); // Empty line
+             }
 
-                    document.Close();
+             document.Close();
 
-                    return ms.ToArray();
-                }
+             return ms.ToArray();
+         }
 
-            }
-            catch (Exception pdfEx)
-            {
+     }
+     catch (Exception pdfEx)
+     {
 
-                throw new Exception(pdfEx.Message);
-            }
-        }
+         throw new Exception(pdfEx.Message);
+     }
+ }
+
+ private void AddContentToPdf(Document document, string optionLabel, string content)
+ {
+     if (string.IsNullOrEmpty(content))
+     {
+         document.Add(new Paragraph($"{optionLabel}: N/A"));
+     }
+     else if (IsImagePath(content))
+     {
+         // Assuming the content is a relative image path
+         var imagePath = Path.Combine("C:\\Users\\6147954\\source\\repos\\ProjectAPI\\", content);
+
+         if (File.Exists(imagePath))
+         {
+             ImageData imageData = ImageDataFactory.Create(imagePath);
+             iText.Layout.Element.Image image = new iText.Layout.Element.Image(imageData);
+             float imageHeightInPoints = 10 * 12f; // Approx. 12 points per line, so 15 lines = 15 * 12 = 180 points
+             float imageAspectRatio = image.GetImageWidth() / image.GetImageHeight(); // Width/Height
+             float imageWidthInPoints = imageHeightInPoints * imageAspectRatio;
+
+             image.ScaleToFit(imageWidthInPoints, imageHeightInPoints);
+             document.Add(new Paragraph($"{optionLabel}:"));
+             document.Add(image);
+         }
+         else
+         {
+             document.Add(new Paragraph($"{optionLabel}: [Image not found]"));
+         }
+     }
+     else
+     {
+         // Assuming the content is plain text
+         document.Add(new Paragraph($"{optionLabel}: {content}"));
+     }
+ }
+ private bool IsImagePath(string content)
+ {
+     // Check if the content is a relative path (e.g., "Images\file.png" or "Images/file.jpg")
+     return content.StartsWith("Images\\") || content.StartsWith("Images/");
+ }
     }
 }
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//using Microsoft.AspNetCore.Http.HttpResults;
-//using Microsoft.EntityFrameworkCore;
-//using OfficeOpenXml;
-//using OfficeOpenXml.Drawing;
-//using ProjectAPI.Data;
-//using ProjectAPI.Dtos;
-//using System.Drawing.Imaging;
-//using Question = ProjectAPI.Dtos.Question;
-
-//namespace ProjectAPI.Services
-//{
-//    public interface IQuestionService
-//    {
-
-
-//        public Task AddQuestionsInBulk(IFormFile file);
-//    }
-//    public class QuestionService : IQuestionService
-//    {
-//        private readonly QuestionBankContext _context;
-//        public QuestionService(QuestionBankContext context)
-//        {
-//            _context = context;
-//        }
-
-
-
-//        public Task AddQuestionsInBulk(IFormFile file)
-//        {
-//            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
-//            var questions = new List<Data.Question>();
-//            var imagePath = "C:\\Users\\6147954\\source\\repos\\ProjectAPI\\Images\\";
-
-//            if (!Directory.Exists(imagePath))
-//                Directory.CreateDirectory(imagePath);
-
-//            using (var package = new ExcelPackage(file.OpenReadStream()))
-//            {
-//                var worksheet = package.Workbook.Worksheets[0];
-//                var rowCount = worksheet.Dimension.Rows;
-
-//                for (int row = 2; row <= rowCount; row++)
-//                {
-//                    var question = new Data.Question
-//                    {
-//                        Subject = ProcessOption(worksheet.Cells[row, 1], imagePath),
-//                        Topic = ProcessOption(worksheet.Cells[row, 2], imagePath),
-//                        DifficultyLevel = ProcessOption(worksheet.Cells[row, 3], imagePath),
-//                        QuestionText = ProcessOption(worksheet.Cells[row, 4], imagePath),
-//                        OptionA = ProcessOption(worksheet.Cells[row, 5], imagePath),
-//                        OptionB = ProcessOption(worksheet.Cells[row, 6], imagePath),
-//                        OptionC = ProcessOption(worksheet.Cells[row, 7], imagePath),
-//                        OptionD = ProcessOption(worksheet.Cells[row, 8], imagePath),
-//                        CorrectAnswer = ProcessOption(worksheet.Cells[row, 9], imagePath),
-//                        CreatedBy = 2,
-//                        CreatedAt=DateTime.Now,
-//                        UpdatedAt=DateTime.Now,
-
-//                    };
-//                    _context.Add(question);
-//                    _context.SaveChanges();
-
-
-//                    //questions.Add(question);
-//                }
-//            }
-
-
-//            //_context.SaveChangesAsync();
-
-//            return Task.CompletedTask;
-//        }
-
-
-
-
-//        private string ProcessOption(ExcelRange cell, string imagePath)
-//        {
-
-
-//            if (cell.Value is string)
-//            {
-//                return cell.Text;
-//            }
-//            else
-//            {
-//                // Get the row and column of the cell
-//                int row = cell.Start.Row;
-//                int column = cell.Start.Column;
-
-//                // Check if the worksheet contains any drawings (images)
-//                var worksheet = cell.Worksheet;
-//                if (worksheet.Drawings.Count > 0)
-//                {
-//                    foreach (var drawing in worksheet.Drawings)
-//                    {
-//                        if (drawing is ExcelPicture picture && picture.From.Row == row - 1 && picture.From.Column == column - 1)
-//                        {
-//                            // Generate a unique file name for the image
-//                            var imageName = Guid.NewGuid().ToString() + ".jpg";
-//                            var imageFullPath = Path.Combine(imagePath, imageName);
-
-
-//                            picture.Image.Save(imageFullPath, ImageFormat.Jpeg);
-//                            return $"/images/{imageName}";
-//                        }
-//                    }
-//                }
-
-//                // If no image is found in the specified cell, return the cell's text value
-//                return cell.Text;
-//            }
-//        }
-
-
-
-
-//    }
-//}
